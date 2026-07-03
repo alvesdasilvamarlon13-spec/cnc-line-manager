@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CNC Line Manager</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 15px; background: #f0f2f5; margin: 0; }
+        h1 { color: #1e3a5f; margin-bottom: 15px; font-size: 20px; }
+        .status-bar { background: white; padding: 10px 12px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 14px; }
+        .machine { background: white; padding: 12px 15px; margin: 8px 0; border-radius: 8px; border-left: 5px solid #999; cursor: pointer; }
+        .machine:hover { background: #f8fafc; }
+        .machine.running { border-left-color: #22c55e; }
+        .machine.setup { border-left-color: #f97316; }
+        .machine-name { font-weight: bold; font-size: 16px; }
+        .machine-info { font-size: 12px; color: #666; margin-top: 5px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { background: white; padding: 15px; border-radius: 12px; width: 95%; max-height: 90vh; overflow-y: auto; margin: 10px auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .modal-title { font-size: 18px; font-weight: bold; color: #1e3a5f; }
+        .close-btn { background: #ddd; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        .tabs { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; }
+        .tab-btn { padding: 8px 12px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 5px; font-size: 12px; }
+        .tab-btn.active { background: #1e3a5f; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        label { display: block; font-weight: bold; margin-top: 8px; font-size: 14px; }
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-top: 5px; font-size: 16px; }
+        .btn { padding: 12px 15px; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px; font-size: 14px; width: 100%; }
+        .btn-green { background: #22c55e; color: white; }
+        .btn-blue { background: #1e3a5f; color: white; }
+        .btn-orange { background: #f97316; color: white; }
+        .info-box { background: #f5f5f5; padding: 12px; border-radius: 8px; margin: 10px 0; font-size: 14px; }
+        .info-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #ddd; }
+        .info-row:last-child { border-bottom: none; }
+        .calc-box { background: linear-gradient(135deg, #dcfce7, #bbf7d0); padding: 15px; border-radius: 8px; margin: 10px 0; text-align: center; }
+        .calc-title { font-size: 11px; color: #166534; text-transform: uppercase; }
+        .calc-value { font-size: 28px; font-weight: bold; color: #166534; }
+        .calc-subtitle { font-size: 10px; color: #22c55e; }
+        .prev-box { background: linear-gradient(135deg, #dbeafe, #bfdbfe); padding: 12px; border-radius: 8px; margin: 10px 0; text-align: center; }
+        .prev-title { font-size: 11px; color: #1e40af; text-transform: uppercase; }
+        .prev-value { font-size: 22px; font-weight: bold; color: #1e40af; }
+        .progress-box { background: #f5f5f5; padding: 8px; border-radius: 5px; margin: 10px 0; }
+        .progress-bar { height: 16px; background: #e5e7eb; border-radius: 8px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #22c55e; border-radius: 8px; }
+        .progress-text { text-align: center; margin-top: 5px; font-weight: bold; font-size: 12px; }
+        .result-row { background: #fef3c7; padding: 10px; border-radius: 6px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+        .result-label { color: #92400e; font-weight: bold; }
+        .result-value { font-size: 18px; font-weight: bold; color: #92400e; }
+        .time-input-group { display: flex; gap: 8px; align-items: center; }
+        .time-input-group input { width: 70px; text-align: center; font-size: 18px; font-weight: bold; }
+        .time-input-group span { font-size: 22px; font-weight: bold; color: #666; }
+        .time-hint { font-size: 11px; color: #666; margin-top: 4px; }
+        .btn-reset { background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-top: 15px; }
+        .btn-small { padding: 8px 12px; font-size: 12px; width: auto; }
+        .troca-section { margin-top: 25px; background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .troca-item { background: #fef9c3; padding: 10px; margin: 8px 0; border-radius: 8px; border-left: 4px solid #eab308; }
+        .troca-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .troca-autor { font-weight: bold; color: #854d0e; font-size: 13px; }
+        .troca-texto { color: #713f12; margin: 0; font-size: 14px; }
+        .edit-area { margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; }
+        .btn-row { display: flex; gap: 8px; }
+        .btn-row .btn { flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="status-bar">
+        <span id="statusTexto" style="color:#666;">⏳ Carregando...</span>
+        <span id="statusMaquinas" style="color:#666;">-</span>
+    </div>
+    
+    <h1>🔧 CNC Line Manager - 2° TURNO</h1>
+    
+    <div id="lista"></div>
+    
+    <!-- Troca de Turno -->
+    <div class="troca-section">
+        <h3 style="color: #1e3a5f; margin-bottom: 12px;">📋 Troca de Turno</h3>
+        
+        <label>Nova Anotação</label>
+        <textarea id="troca-obs" placeholder="Anotações para o próximo turno..." style="min-height: 70px;"></textarea>
+        
+        <button class="btn btn-blue" onclick="addTrocaObs()">💾 Salvar Anotação</button>
+        
+        <div id="troca-lista"></div>
+        
+        <button class="btn-reset" onclick="resetarSistema()">🗑️ Resetar Sistema</button>
+    </div>
+    
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title" id="modal-titulo">Máquina</span>
+                <button class="close-btn" onclick="fecharModal()">✕ Fechar</button>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="mostrarAba('ordem')">Ordem Atual</button>
+                <button class="tab-btn" onclick="mostrarAba('nova')">Nova Ordem</button>
+                <button class="tab-btn" onclick="mostrarAba('setup')">Setup</button>
+                <button class="tab-btn" onclick="mostrarAba('identidade')">Identidade</button>
+            </div>
+            
+            <div class="tab-content active" id="aba-ordem">
+                <div class="info-box" id="info-ordem"><p>Nenhuma ordem ativa.</p></div>
+                <div class="calc-box" id="capacidade-box" style="display:none;">
+                    <div class="calc-title">Capacidade por Turno (8h)</div>
+                    <div class="calc-value" id="capacidade-valor">0</div>
+                    <div class="calc-subtitle">peças</div>
+                </div>
+                <div class="prev-box" id="previsao-box" style="display:none;">
+                    <div class="prev-title">Previsão de Término</div>
+                    <div class="prev-value" id="previsao-valor">--:--</div>
+                </div>
+                <div class="progress-box" id="progresso-box" style="display:none;">
+                    <div class="progress-bar"><div class="progress-fill" id="progresso-barra" style="width:0%"></div></div>
+                    <div class="progress-text" id="progresso-texto">0 / 0 peças</div>
+                </div>
+                <div id="edit-area" style="display:none;">
+                    <label>Peças Produzidas</label>
+                    <input type="number" id="edit-produzidas" value="0">
+                    <label>Status</label>
+                    <select id="edit-status">
+                        <option value="idle">Ociosa</option>
+                        <option value="production">Rodando</option>
+                        <option value="stopped">Parada</option>
+                        <option value="setup">Em Setup</option>
+                    </select>
+                    <div class="btn-row">
+                        <button class="btn btn-green" onclick="adicionarPeca()">+ 1 Peça</button>
+                        <button class="btn btn-blue" onclick="salvarOrdem()">Salvar</button>
+                    </div>
+                    <button class="btn btn-orange" onclick="finalizarOrdem()">Finalizar Ordem</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="aba-nova">
+                <label>Número da Ordem</label>
+                <input type="text" id="nova-numero" placeholder="Ex: ORD-001">
+                <label>Item / Produto</label>
+                <input type="text" id="nova-item" placeholder="Descrição do item">
+                <label>Tempo por Peça (MM:SS,S)</label>
+                <div class="time-input-group">
+                    <input type="text" id="nova-minutos" placeholder="04" maxlength="2" oninput="calcularCapacidadeNova()">
+                    <span>:</span>
+                    <input type="text" id="nova-segundos" placeholder="50,6" maxlength="4" oninput="calcularCapacidadeNova()">
+                </div>
+                <div class="time-hint">Ex: 4:50,6 = 4min 50.6seg</div>
+                <div class="result-row" id="resultado-calc-nova" style="display:none;">
+                    <span class="result-label">Capacidade 8h:</span>
+                    <span class="result-value" id="capacidade-nova">0 peças</span>
+                </div>
+                <label style="margin-top:12px;">Total de Peças</label>
+                <input type="number" id="nova-total" placeholder="100">
+                <label>Preparador</label>
+                <input type="text" id="nova-preparador" placeholder="Nome do preparador">
+                <button class="btn btn-green" onclick="iniciarOrdem()">🚀 INICIAR ORDEM</button>
+            </div>
+            
+            <div class="tab-content" id="aba-setup">
+                <label>Preparador</label>
+                <input type="text" id="setup-preparador" placeholder="Nome do preparador">
+                <label>Número da Ordem</label>
+                <input type="text" id="setup-ordem" placeholder="Ex: ORD-001">
+                <label>Item</label>
+                <input type="text" id="setup-item" placeholder="Código do item">
+                <label>Tempo por Peça (MM:SS,S)</label>
+                <div class="time-input-group">
+                    <input type="text" id="setup-minutos" placeholder="04" maxlength="2" oninput="calcularCapacidadeSetup()">
+                    <span>:</span>
+                    <input type="text" id="setup-segundos" placeholder="50,6" maxlength="4" oninput="calcularCapacidadeSetup()">
+                </div>
+                <div class="result-row" id="resultado-calc-setup" style="display:none;">
+                    <span class="result-label">Capacidade 8h:</span>
+                    <span class="result-value" id="capacidade-setup">0 peças</span>
+                </div>
+                <button class="btn btn-orange" onclick="iniciarSetup()">⚙️ INICIAR SETUP</button>
+                <div id="setup-cronometro" style="display:none; text-align:center; margin-top:15px;">
+                    <div style="font-size:36px; font-weight:bold; color:#f97316;" id="tempo-setup">00:00:00</div>
+                    <div style="color:#666;font-size:12px;">Tempo de Setup</div>
+                    <label style="margin-top:15px;">Observação</label>
+                    <textarea id="setup-obs" placeholder="Ajustes..."></textarea>
+                    <button class="btn btn-blue" onclick="addSetupObs()">+ Adicionar</button>
+                    <div id="setup-lista"></div>
+                    <button class="btn btn-green" onclick="finalizarSetup()">✅ FINALIZAR SETUP</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="aba-identidade">
+                <p style="color:#666;font-size:13px;">Anotações permanentes da máquina:</p>
+                <textarea id="iden-obs" placeholder="Particularidades, parâmetros..."></textarea>
+                <button class="btn btn-blue" onclick="addIdenObs()">💾 Salvar Anotação</button>
+                <div id="iden-lista"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var MAQUINAS_PADRAO = [
+            { id: 'TNL-009', nome: 'TNL 009' },
+            { id: 'TNL-010', nome: 'TNL 010' },
+            { id: 'TNL-033', nome: 'TNL 033' },
+            { id: 'TNL-034', nome: 'TNL 034' },
+            { id: 'TNL-036', nome: 'TNL 036' },
+            { id: 'TNL-037', nome: 'TNL 037' },
+            { id: 'TNL-043', nome: 'TNL 043' },
+            { id: 'TNL-044', nome: 'TNL 044' },
+            { id: 'TNL-039', nome: 'TNL 039' },
+            { id: 'TNL-040', nome: 'TNL 040' },
+            { id: 'TNL-041', nome: 'TNL 041' }
+        ];
+
+        var maquinas = [];
+        var maquinaAtual = null;
+        var timerSetup = null;
+        var trocaTurno = [];
+
+        function setStatus(texto, tipo) {
+            var el = document.getElementById('statusTexto');
+            el.textContent = texto;
+            if (tipo === 'ok') el.style.color = '#22c55e';
+            else if (tipo === 'error') el.style.color = '#ef4444';
+            else if (tipo === 'warning') el.style.color = '#f97316';
+            else el.style.color = '#666';
+            document.getElementById('statusMaquinas').textContent = maquinas.length ? maquinas.length + ' máquinas' : '';
+        }
+
+        function salvarStorage(dados, key) {
+            try {
+                localStorage.setItem(key, JSON.stringify(dados));
+                return true;
+            } catch (e) { return false; }
+        }
+
+        function carregarStorage(key) {
+            try {
+                var dado = localStorage.getItem(key);
+                if (dado && dado.length > 0) return JSON.parse(dado);
+            } catch (e) {}
+            return null;
+        }
+
+        function salvarDados() {
+            salvarStorage(maquinas, 'cncMaquinas');
+            setStatus('✅ Salvo', 'ok');
+        }
+
+        function carregarDados() {
+            var dados = carregarStorage('cncMaquinas');
+            if (dados && Array.isArray(dados) && dados.length > 0) {
+                maquinas = dados;
+                setStatus('📂 Carregado', 'ok');
+            } else {
+                criarMaquinas();
+                salvarDados();
+                setStatus('🆕 Novo sistema', 'warning');
+            }
+            renderizarLista();
+        }
+
+        function salvarTroca() { salvarStorage(trocaTurno, 'cncTrocaTurno'); }
+        function carregarTroca() {
+            var dados = carregarStorage('cncTrocaTurno');
+            if (dados) trocaTurno = dados;
+            renderizarTroca();
+        }
+
+        function criarMaquinas() {
+            maquinas = MAQUINAS_PADRAO.map(function(m) {
+                return { id: m.id, nome: m.nome, status: 'idle', ordem: null, setupObs: [], identidade: [] };
+            });
+        }
+
+        function renderizarLista() {
+            var div = document.getElementById('lista');
+            div.innerHTML = '';
+            for (var i = 0; i < maquinas.length; i++) {
+                var m = maquinas[i];
+                var divMaq = document.createElement('div');
+                divMaq.className = 'machine' + (m.status === 'production' ? ' running' : '') + (m.status === 'setup' ? ' setup' : '');
+                
+                var html = '<div class="machine-name">' + m.nome + '</div>';
+                if (m.ordem) {
+                    var rest = m.ordem.total - m.ordem.produzidas;
+                    var fim = new Date(Date.now() + rest * m.ordem.tempoSegundos * 1000);
+                    var h = String(fim.getHours()).padStart(2,'0');
+                    var min = String(fim.getMinutes()).padStart(2,'0');
+                    var d = String(fim.getDate()).padStart(2,'0');
+                    var mes = String(fim.getMonth()+1).padStart(2,'0');
+                    html += '<div class="machine-info" style="color:#22c55e;">⏱ ' + m.ordem.tempoMinutos.toFixed(2) + ' min • Fim ' + h + ':' + min + ' ' + d + '/' + mes + '</div>';
+                    html += '<div class="machine-info">' + m.ordem.produzidas + '/' + m.ordem.total + ' peças • ' + m.ordem.numero + '</div>';
+                } else {
+                    html += '<div class="machine-info" style="color:#999;">Aguardando ordem</div>';
+                }
+                
+                divMaq.innerHTML = html;
+                divMaq.onclick = (function(idx) { return function() { abrirModal(idx); }; })(i);
+                div.appendChild(divMaq);
+            }
+        }
+
+        function abrirModal(i) {
+            maquinaAtual = maquinas[i];
+            document.getElementById('modal-titulo').textContent = maquinaAtual.nome;
+            mostrarAba('ordem');
+            atualizarInfo();
+            atualizarSetupLista();
+            atualizarIdenLista();
+            document.getElementById('setup-cronometro').style.display = 'none';
+            document.getElementById('modal').style.display = 'block';
+        }
+
+        function fecharModal() {
+            document.getElementById('modal').style.display = 'none';
+            if (timerSetup) clearInterval(timerSetup);
+        }
+
+        function mostrarAba(nome) {
+            document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+            document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
+            document.getElementById('aba-' + nome).classList.add('active');
+            if (event && event.target) event.target.classList.add('active');
+        }
+
+        function calcCap(min, seg) {
+            if ((!min && min !== 0) && (!seg && seg !== 0)) return null;
+            var m = parseInt(min) || 0;
+            var s = parseFloat((seg || '0').replace(',', '.')) || 0;
+            var totalSeg = m * 60 + s;
+            if (totalSeg <= 0) return null;
+            return { min: m, seg: seg, totalSeg: totalSeg, cap: Math.floor(480 / (totalSeg / 60)) };
+        }
+
+        function calcNova() {
+            var r = calcCap(document.getElementById('nova-minutos').value, document.getElementById('nova-segundos').value);
+            if (r) {
+                document.getElementById('capacidade-nova').textContent = r.cap + ' peças';
+                document.getElementById('resultado-calc-nova').style.display = 'flex';
+            } else {
+                document.getElementById('resultado-calc-nova').style.display = 'none';
+            }
+        }
+
+        function calcSetup() {
+            var r = calcCap(document.getElementById('setup-minutos').value, document.getElementById('setup-segundos').value);
+            if (r) {
+                document.getElementById('capacidade-setup').textContent = r.cap + ' peças';
+                document.getElementById('resultado-calc-setup').style.display = 'flex';
+            } else {
+                document.getElementById('resultado-calc-setup').style.display = 'none';
+            }
+        }
+
+        function atualizarInfo() {
+            var info = document.getElementById('info-ordem');
+            if (maquinaAtual.ordem) {
+                info.innerHTML = 
+                    '<div class="info-row"><span>Ordem:</span><strong>' + maquinaAtual.ordem.numero + '</strong></div>' +
+                    '<div class="info-row"><span>Item:</span><strong>' + maquinaAtual.ordem.item + '</strong></div>' +
+                    '<div class="info-row"><span>Prep:</span><strong>' + (maquinaAtual.ordem.preparador || '-') + '</strong></div>' +
+                    '<div class="info-row"><span>Tempo:</span><strong>' + maquinaAtual.ordem.tempoFormatado + '</strong></div>' +
+                    '<div class="info-row"><span>Capacidade:</span><strong>' + maquinaAtual.ordem.capacidadeTurno + ' peças</strong></div>';
+                document.getElementById('capacidade-valor').textContent = maquinaAtual.ordem.capacidadeTurno;
+                document.getElementById('capacidade-box').style.display = 'block';
+                var rest = maquinaAtual.ordem.total - maquinaAtual.ordem.produzidas;
+                var fim = new Date(Date.now() + rest * maquinaAtual.ordem.tempoSegundos * 1000);
+                document.getElementById('previsao-valor').textContent = String(fim.getHours()).padStart(2,'0') + ':' + String(fim.getMinutes()).padStart(2,'0');
+                document.getElementById('previsao-box').style.display = 'block';
+                var pct = Math.round(maquinaAtual.ordem.produzidas / maquinaAtual.ordem.total * 100);
+                document.getElementById('progresso-barra').style.width = pct + '%';
+                document.getElementById('progresso-texto').textContent = maquinaAtual.ordem.produzidas + ' / ' + maquinaAtual.ordem.total + ' (' + pct + '%)';
+                document.getElementById('progresso-box').style.display = 'block';
+                document.getElementById('edit-area').style.display = 'block';
+            } else {
+                info.innerHTML = '<p>Nenhuma ordem ativa.</p>';
+                document.getElementById('capacidade-box').style.display = 'none';
+                document.getElementById('previsao-box').style.display = 'none';
+                document.getElementById('progresso-box').style.display = 'none';
+                document.getElementById('edit-area').style.display = 'none';
+            }
+            document.getElementById('edit-produzidas').value = maquinaAtual.ordem ? maquinaAtual.ordem.produzidas : 0;
+            document.getElementById('edit-status').value = maquinaAtual.status;
+        }
+
+        function atualizarPrevisao() {
+            var salvou = false;
+            for (var i = 0; i < maquinas.length; i++) {
+                var m = maquinas[i];
+                if (m.status === 'production' && m.ordem && m.ordem.startTime) {
+                    var elapsed = Math.floor((Date.now() - m.ordem.startTime) / 1000);
+                    var produced = Math.floor(elapsed / m.ordem.tempoSegundos);
+                    if (produced > m.ordem.produzidas) { m.ordem.produzidas = produced; salvou = true; }
+                }
+            }
+            if (salvou) salvarDados();
+            renderizarLista();
+            if (maquinaAtual && maquinaAtual.ordem) {
+                var rest = maquinaAtual.ordem.total - maquinaAtual.ordem.produzidas;
+                var fim = new Date(Date.now() + rest * maquinaAtual.ordem.tempoSegundos * 1000);
+                document.getElementById('previsao-valor').textContent = String(fim.getHours()).padStart(2,'0') + ':' + String(fim.getMinutes()).padStart(2,'0');
+                var pct = Math.round(maquinaAtual.ordem.produzidas / maquinaAtual.ordem.total * 100);
+                document.getElementById('progresso-barra').style.width = pct + '%';
+                document.getElementById('progresso-texto').textContent = maquinaAtual.ordem.produzidas + ' / ' + maquinaAtual.ordem.total + ' (' + pct + '%)';
+            }
+        }
+
+        function adicionarPeca() {
+            if (!maquinaAtual.ordem) { alert('Nenhuma ordem ativa!'); return; }
+            maquinaAtual.ordem.produzidas++;
+            salvarDados(); renderizarLista();
+        }
+
+        function salvarOrdem() {
+            if (!maquinaAtual.ordem) { alert('Nenhuma ordem ativa!'); return; }
+            maquinaAtual.ordem.produzidas = parseInt(document.getElementById('edit-produzidas').value) || 0;
+            maquinaAtual.status = document.getElementById('edit-status').value;
+            salvarDados(); renderizarLista();
+            alert('Salvo!');
+        }
+
+        function finalizarOrdem() {
+            if (!maquinaAtual.ordem) return;
+            if (confirm('Finalizar ordem?')) {
+                maquinaAtual.ordem = null;
+                maquinaAtual.status = 'idle';
+                salvarDados(); atualizarInfo(); renderizarLista();
+            }
+        }
+
+        function iniciarOrdem() {
+            var num = document.getElementById('nova-numero').value.trim();
+            var item = document.getElementById('nova-item').value.trim();
+            var total = parseInt(document.getElementById('nova-total').value);
+            var r = calcCap(document.getElementById('nova-minutos').value, document.getElementById('nova-segundos').value);
+            var prep = document.getElementById('nova-preparador').value.trim();
+
+            if (!num || !item || !total || !r) { alert('Preencha: Número, Item, Total e Tempo'); return; }
+
+            maquinaAtual.ordem = {
+                numero: num, item: item, total: total,
+                tempoMinutos: r.totalSeg / 60, tempoSegundos: r.totalSeg,
+                tempoFormatado: r.min + ':' + r.seg, capacidadeTurno: r.cap,
+                produzidas: 0, preparador: prep, startTime: Date.now()
+            };
+            maquinaAtual.status = 'production';
+            salvarDados(); atualizarInfo(); renderizarLista();
+            alert('Ordem ' + num + ' iniciada! Capacidade: ' + r.cap + ' peças');
+        }
+
+        function iniciarSetup() {
+            var prep = document.getElementById('setup-preparador').value.trim();
+            var ordem = document.getElementById('setup-ordem').value.trim();
+            var item = document.getElementById('setup-item').value.trim();
+            var r = calcCap(document.getElementById('setup-minutos').value, document.getElementById('setup-segundos').value);
+
+            if (!prep || !ordem || !item || !r) { alert('Preencha todos os campos'); return; }
+
+            maquinaAtual.status = 'setup';
+            maquinaAtual.tempSetup = r;
+            salvarDados();
+            document.getElementById('setup-cronometro').style.display = 'block';
+            var start = Date.now();
+            
+            timerSetup = setInterval(function() {
+                var el = Math.floor((Date.now() - start) / 1000);
+                var h = Math.floor(el / 3600);
+                var m = Math.floor((el % 3600) / 60);
+                var s = el % 60;
+                document.getElementById('tempo-setup').textContent = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+            }, 1000);
+        }
+
+        function addSetupObs() {
+            var t = document.getElementById('setup-obs').value.trim();
+            if (!t) { alert('Digite uma observação'); return; }
+            var prep = document.getElementById('setup-preparador').value.trim();
+            maquinaAtual.setupObs.unshift({ texto: t, data: new Date().toLocaleString(), autor: prep || 'Operador' });
+            salvarDados();
+            document.getElementById('setup-obs').value = '';
+            atualizarSetupLista();
+        }
+
+        function atualizarSetupLista() {
+            var lista = document.getElementById('setup-lista');
+            if (maquinaAtual.setupObs.length === 0) {
+                lista.innerHTML = '<p style="color:#999;font-size:12px;">Nenhuma observação.</p>';
+            } else {
+                lista.innerHTML = maquinaAtual.setupObs.map(function(o) {
+                    return '<div style="background:#f5f5f5;padding:8px;margin:5px 0;border-radius:5px;font-size:12px;"><strong>' + o.autor + '</strong> - ' + o.data + '<p style="margin:5px 0 0 0;">' + o.texto + '</p></div>';
+                }).join('');
+            }
+        }
+
+        function finalizarSetup() {
+            var prep = document.getElementById('setup-preparador').value.trim();
+            var ordem = document.getElementById('setup-ordem').value.trim();
+            var item = document.getElementById('setup-item').value.trim();
+            var obs = document.getElementById('setup-obs').value.trim();
+
+            if (timerSetup) clearInterval(timerSetup);
+
+            maquinaAtual.status = 'production';
+            var r = maquinaAtual.tempSetup;
+            
+            maquinaAtual.ordem = {
+                numero: ordem, item: item, total: r.cap,
+                tempoMinutos: r.totalSeg / 60, tempoSegundos: r.totalSeg,
+                tempoFormatado: r.min + ':' + r.seg, capacidadeTurno: r.cap,
+                produzidas: 0, preparador: prep, obs: obs, startTime: Date.now()
+            };
+
+            if (obs) maquinaAtual.setupObs.unshift({ texto: 'Setup: ' + obs, data: new Date().toLocaleString(), autor: prep || 'Operador' });
+            salvarDados();
+            document.getElementById('setup-cronometro').style.display = 'none';
+            atualizarInfo(); renderizarLista();
+            alert('Setup finalizado! Capacidade: ' + r.cap + ' peças');
+        }
+
+        function addIdenObs() {
+            var t = document.getElementById('iden-obs').value.trim();
+            if (!t) { alert('Digite uma anotação'); return; }
+            var prep = document.getElementById('setup-preparador').value.trim() || 'Operador';
+            maquinaAtual.identidade.unshift({ texto: t, data: new Date().toLocaleString(), autor: prep });
+            salvarDados();
+            document.getElementById('iden-obs').value = '';
+            atualizarIdenLista();
+            alert('Anotação salva!');
+        }
+
+        function atualizarIdenLista() {
+            var lista = document.getElementById('iden-lista');
+            if (maquinaAtual.identidade.length === 0) {
+                lista.innerHTML = '<p style="color:#999;font-size:12px;">Nenhuma anotação.</p>';
+            } else {
+                lista.innerHTML = maquinaAtual.identidade.map(function(o) {
+                    return '<div style="background:#dcfce7;padding:8px;margin:5px 0;border-radius:5px;border-left:3px solid #22c55e;font-size:12px;"><strong>' + o.autor + '</strong> - ' + o.data + '<p style="margin:5px 0 0 0;">' + o.texto + '</p></div>';
+                }).join('');
+            }
+        }
+
+        function addTrocaObs() {
+            var t = document.getElementById('troca-obs').value.trim();
+            if (!t) { alert('Digite uma anotação'); return; }
+            var now = new Date();
+            var data = now.toLocaleDateString('pt-BR') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            trocaTurno.unshift({ texto: t, data: data, turno: document.querySelector('h1').textContent.includes('2°') ? '2° Turno' : '1° Turno' });
+            salvarTroca();
+            document.getElementById('troca-obs').value = '';
+            renderizarTroca();
+            alert('Anotação salva!');
+        }
+
+        function deletarTrocaObs(i) {
+            if (confirm('Excluir?')) { trocaTurno.splice(i, 1); salvarTroca(); renderizarTroca(); }
+        }
+
+        function limparTrocaTurno() {
+            if (confirm('Limpar todas?')) { trocaTurno = []; salvarTroca(); renderizarTroca(); }
+        }
+
+        function renderizarTroca() {
+            var lista = document.getElementById('troca-lista');
+            if (trocaTurno.length === 0) {
+                lista.innerHTML = '<p style="color:#999;text-align:center;padding:15px;font-size:13px;">Nenhuma anotação.</p>';
+            } else {
+                var html = trocaTurno.map(function(o, i) {
+                    return '<div class="troca-item">' +
+                           '<div class="troca-header">' +
+                           '<span class="troca-autor">' + o.turno + ' - ' + o.data + '</span>' +
+                           '<button onclick="deletarTrocaObs(' + i + ')" style="background:#ef4444;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕</button>' +
+                           '</div><p class="troca-texto">' + o.texto + '</p></div>';
+                }).join('');
+                html += '<button onclick="limparTrocaTurno()" style="margin-top:10px;background:#6b7280;color:white;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;font-size:12px;">🧹 Limpar Todas</button>';
+                lista.innerHTML = html;
+            }
+        }
+
+        function resetarSistema() {
+            if (confirm('⚠️ Apagar TODOS os dados?')) {
+                localStorage.removeItem('cncMaquinas');
+                localStorage.removeItem('cncTrocaTurno');
+                location.reload();
+            }
+        }
+
+        window.onload = function() {
+            carregarDados();
+            carregarTroca();
+            setStatus('✅ Sistema pronto', 'ok');
+            setInterval(atualizarPrevisao, 1000);
+        };
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a15255eee9b950ef',t:'MTc4MzA0NDQzNg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
