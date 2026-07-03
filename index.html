@@ -119,8 +119,8 @@
                     <div class="progress-text" id="progresso-texto">0 / 0 peças</div>
                 </div>
                 <div id="edit-area" style="display:none;">
-                    <label>Peças Produzidas</label>
-                    <input type="number" id="edit-produzidas" value="0">
+                    <label>Adicionar Peças Produzidas (serão SOMADAS ao total)</label>
+                    <input type="number" id="edit-produzidas" placeholder="Digite a quantidade para adicionar..." value="">
                     <label>Status</label>
                     <select id="edit-status">
                         <option value="idle">Ociosa</option>
@@ -130,7 +130,7 @@
                     </select>
                     <div class="btn-row">
                         <button class="btn btn-green" onclick="adicionarPeca()">+ 1 Peça</button>
-                        <button class="btn btn-blue" onclick="salvarOrdem()">Salvar</button>
+                        <button class="btn btn-blue" onclick="salvarOrdem()">💾 Somar ao Total</button>
                     </div>
                     <button class="btn btn-orange" onclick="finalizarOrdem()">Finalizar Ordem</button>
                 </div>
@@ -310,6 +310,8 @@
             atualizarIdenLista();
             document.getElementById('setup-cronometro').style.display = 'none';
             document.getElementById('modal').style.display = 'block';
+            // Limpa o campo ao abrir
+            document.getElementById('edit-produzidas').value = '';
         }
 
         function fecharModal() {
@@ -361,7 +363,8 @@
                     '<div class="info-row"><span>Item:</span><strong>' + maquinaAtual.ordem.item + '</strong></div>' +
                     '<div class="info-row"><span>Prep:</span><strong>' + (maquinaAtual.ordem.preparador || '-') + '</strong></div>' +
                     '<div class="info-row"><span>Tempo:</span><strong>' + maquinaAtual.ordem.tempoFormatado + '</strong></div>' +
-                    '<div class="info-row"><span>Capacidade:</span><strong>' + maquinaAtual.ordem.capacidadeTurno + ' peças</strong></div>';
+                    '<div class="info-row"><span>Capacidade:</span><strong>' + maquinaAtual.ordem.capacidadeTurno + ' peças</strong></div>' +
+                    '<div class="info-row"><span>Total Produzidas:</span><strong style="color:#22c55e;font-size:18px;">' + maquinaAtual.ordem.produzidas + '</strong></div>';
                 document.getElementById('capacidade-valor').textContent = maquinaAtual.ordem.capacidadeTurno;
                 document.getElementById('capacidade-box').style.display = 'block';
                 var rest = maquinaAtual.ordem.total - maquinaAtual.ordem.produzidas;
@@ -380,7 +383,6 @@
                 document.getElementById('progresso-box').style.display = 'none';
                 document.getElementById('edit-area').style.display = 'none';
             }
-            document.getElementById('edit-produzidas').value = maquinaAtual.ordem ? maquinaAtual.ordem.produzidas : 0;
             document.getElementById('edit-status').value = maquinaAtual.status;
         }
 
@@ -409,23 +411,45 @@
         function adicionarPeca() {
             if (!maquinaAtual.ordem) { alert('Nenhuma ordem ativa!'); return; }
             maquinaAtual.ordem.produzidas++;
-            salvarDados(); renderizarLista();
+            salvarDados();
+            atualizarInfo();
+            renderizarLista();
+            alert('+1 peça adicionada! Total: ' + maquinaAtual.ordem.produzidas);
         }
 
+        // FUNÇÃO ATUALIZADA - COMPORTAMENTO INCREMENTAL
         function salvarOrdem() {
             if (!maquinaAtual.ordem) { alert('Nenhuma ordem ativa!'); return; }
-            maquinaAtual.ordem.produzidas = parseInt(document.getElementById('edit-produzidas').value) || 0;
+            
+            var valorDigitado = parseInt(document.getElementById('edit-produzidas').value) || 0;
+            
+            if (valorDigitado <= 0) {
+                alert('Digite um valor maior que zero para adicionar!');
+                return;
+            }
+            
+            // SOMA o valor digitado ao total acumulado (INCREMENTAL)
+            maquinaAtual.ordem.produzidas += valorDigitado;
+            
             maquinaAtual.status = document.getElementById('edit-status').value;
-            salvarDados(); renderizarLista();
-            alert('Salvo!');
+            salvarDados();
+            atualizarInfo();
+            renderizarLista();
+            
+            // Limpa o campo após salvar
+            document.getElementById('edit-produzidas').value = '';
+            
+            alert('+' + valorDigitado + ' peças adicionadas!\nTotal acumulado: ' + maquinaAtual.ordem.produzidas + ' peças');
         }
 
         function finalizarOrdem() {
             if (!maquinaAtual.ordem) return;
-            if (confirm('Finalizar ordem?')) {
+            if (confirm('Finalizar ordem?\n\nTotal produzido: ' + maquinaAtual.ordem.produzidas + ' peças')) {
                 maquinaAtual.ordem = null;
                 maquinaAtual.status = 'idle';
-                salvarDados(); atualizarInfo(); renderizarLista();
+                salvarDados();
+                atualizarInfo();
+                renderizarLista();
             }
         }
 
@@ -445,7 +469,9 @@
                 produzidas: 0, preparador: prep, startTime: Date.now()
             };
             maquinaAtual.status = 'production';
-            salvarDados(); atualizarInfo(); renderizarLista();
+            salvarDados();
+            atualizarInfo();
+            renderizarLista();
             alert('Ordem ' + num + ' iniciada! Capacidade: ' + r.cap + ' peças');
         }
 
@@ -514,7 +540,8 @@
             if (obs) maquinaAtual.setupObs.unshift({ texto: 'Setup: ' + obs, data: new Date().toLocaleString(), autor: prep || 'Operador' });
             salvarDados();
             document.getElementById('setup-cronometro').style.display = 'none';
-            atualizarInfo(); renderizarLista();
+            atualizarInfo();
+            renderizarLista();
             alert('Setup finalizado! Capacidade: ' + r.cap + ' peças');
         }
 
@@ -592,5 +619,5 @@
             setInterval(atualizarPrevisao, 1000);
         };
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a15255eee9b950ef',t:'MTc4MzA0NDQzNg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
